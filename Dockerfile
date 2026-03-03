@@ -29,6 +29,7 @@ COPY templates/ templates/
 
 # Active le venv pour tous les CMD suivants
 ENV PATH="/opt/venv/bin:$PATH" \
+    TEST=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
