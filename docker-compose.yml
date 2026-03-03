@@ -1,0 +1,82 @@
+# docker-compose.yml — Application Guestbook (Flask + PostgreSQL + Redis)
+# Démarrage : docker compose up --build
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── 1. Service Web (Flask / Gunicorn) ──────────────────────────────────────
+  web:
+    build: .
+    container_name: guestbook_web
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      DB_HOST: db
+      DB_NAME: guestbook
+      DB_USER: postgres
+      DB_PASSWORD: secret
+      REDIS_HOST: cache
+    depends_on:
+      db:
+        condition: service_healthy   # attend que PostgreSQL soit prêt
+      cache:
+        condition: service_healthy   # attend que Redis soit prêt
+    networks:
+      - guestbook_net
+
+  # ── 2. Base de données (PostgreSQL) ───────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: guestbook_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: guestbook
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # persistance des données
+    networks:
+      - guestbook_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d guestbook"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── 3. Adminer — interface web pour PostgreSQL ────────────────────────────
+  adminer:
+    image: adminer:latest
+    container_name: guestbook_adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - guestbook_net
+
+  # ── 4. Cache / compteur de visites (Redis) ────────────────────────────────
+  cache:
+    image: redis:7-alpine
+    container_name: guestbook_cache
+    restart: unless-stopped
+    networks:
+      - guestbook_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+# ── Volumes nommés ────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+
+# ── Réseau interne isolé ──────────────────────────────────────────────────────
+networks:
+  guestbook_net:
+    driver: bridge
